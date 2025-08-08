@@ -1,2 +1,0 @@
-# tableRule-import
-# tableRule-import
