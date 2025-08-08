@@ -11,8 +11,21 @@ const CONSTANTS = {
     },
     HEADER_ID_MAP: {
         '発行元': 'partnerName',
+        '発生日': 'issueDate',
+        '金額': 'amount',
+        '収支': 'incomeExpense',
+        '決済': 'payment',
+        '口座': 'account',
+        '決済期日': 'paymentDate',
         '勘定科目': 'accountItem',
-        '備考': 'description'
+        '適格': 'qualified',
+        '税区分': 'taxCategory',
+        '税率': 'taxRate',
+        '取引先': 'tradingPartner',
+        '品目': 'item',
+        '部門': 'department',
+        '備考': 'description',
+        '操作': 'operation'
     },
     MESSAGES: {
         NO_CSV_DATA: 'CSVデータを入力してください。',
@@ -63,8 +76,21 @@ function updateTableFromCSV(csvData) {
         },
         HEADER_ID_MAP: {
             '発行元': 'partnerName',
+            '発生日': 'issueDate',
+            '金額': 'amount',
+            '収支': 'incomeExpense',
+            '決済': 'payment',
+            '口座': 'account',
+            '決済期日': 'paymentDate',
             '勘定科目': 'accountItem',
-            '備考': 'description'
+            '適格': 'qualified',
+            '税区分': 'taxCategory',
+            '税率': 'taxRate',
+            '取引先': 'tradingPartner',
+            '品目': 'item',
+            '部門': 'department',
+            '備考': 'description',
+            '操作': 'operation'
         },
         MESSAGES: {
             TABLE_NOT_FOUND: 'テーブルが見つかりません。',
