@@ -82,13 +82,11 @@ function updateTableFromCSV(csvData) {
             '決済期日': 'paymentDate',
             '勘定科目': 'accountItem',
             '適格': 'qualified',
-            '税区分': 'taxCategory',
             '税率': 'taxRate',
             '取引先': 'tradingPartner',
             '品目': 'item',
             '部門': 'department',
             '備考': 'description',
-            '操作': 'operation'
         },
         MESSAGES: {
             TABLE_NOT_FOUND: 'テーブルが見つかりません。',
