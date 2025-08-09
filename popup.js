@@ -1,22 +1,19 @@
 // 定数定義
 const CONSTANTS = {
     DELAYS: {
-        EDIT_MODE_WAIT: 300,
-        TYPE_INTERVAL: 200,
+        EDIT_MODE_WAIT: 200,
+        TYPE_INTERVAL: 100,
         ENTER_WAIT: 200,
-        ROW_PROCESSING: 2000
+        ROW_PROCESSING: 5000
     },
     COLORS: {
         SUCCESS_BACKGROUND: '#f0fff0'
     },
     HEADER_ID_MAP: {
         '発行元': 'partnerName',
-        '発生日': 'issueDate',
-        '金額': 'amount',
         '収支': 'incomeExpense',
         '決済': 'payment',
         '口座': 'account',
-        '決済期日': 'paymentDate',
         '勘定科目': 'accountItem',
         '適格': 'qualified',
         '税率': 'taxRate',
@@ -40,7 +37,7 @@ const CONSTANTS = {
 document.getElementById('updateButton').addEventListener('click', () => {
     const csvData = document.getElementById('csvInput').value;
     if (!csvData) {
-        alert('CSVデータを入力してください。');
+        alert(CONSTANTS.MESSAGES.NO_CSV_DATA);
         return;
     }
 
@@ -51,7 +48,7 @@ document.getElementById('updateButton').addEventListener('click', () => {
         chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: updateTableFromCSV,
-            args: [csvData]
+            args: [csvData, CONSTANTS] // CONSTANTSを引数として渡す
         });
     });
 });
@@ -59,89 +56,78 @@ document.getElementById('updateButton').addEventListener('click', () => {
 /**
  * CSVデータを使用してテーブルを更新するメイン関数
  * @param {string} csvData - 拡張機能のポップアップから渡されるCSVデータ
+ * @param {object} constants - ポップアップから渡される定数
  */
-function updateTableFromCSV(csvData) {
-    // 定数定義（コンテンツスクリプト内で利用可能）
-    const CONSTANTS = {
-        DELAYS: {
-            EDIT_MODE_WAIT: 300,
-            TYPE_INTERVAL: 200,
-            ENTER_WAIT: 200,
-            ROW_PROCESSING: 2000
-        },
-        COLORS: {
-            SUCCESS_BACKGROUND: '#f0fff0'
-        },
-        HEADER_ID_MAP: {
-            '発行元': 'partnerName',
-            '発生日': 'issueDate',
-            '金額': 'amount',
-            '収支': 'incomeExpense',
-            '決済': 'payment',
-            '口座': 'account',
-            '決済期日': 'paymentDate',
-            '勘定科目': 'accountItem',
-            '適格': 'qualified',
-            '税率': 'taxRate',
-            '取引先': 'tradingPartner',
-            '品目': 'item',
-            '部門': 'department',
-            '備考': 'description',
-        },
-        MESSAGES: {
-            TABLE_NOT_FOUND: 'テーブルが見つかりません。',
-            HEADER_NOT_FOUND: 'エラー: テーブルのヘッダーが見つかりませんでした。',
-            HEADER_ROW_NOT_FOUND: 'エラー: テーブルのヘッダー行が見つかりませんでした。',
-            COLUMNS_NOT_FOUND: 'エラー: 必要な列が見つかりませんでした。',
-            EDIT_BUTTON_NOT_FOUND: '編集モードに移行するためのボタンが見つかりません。'
-        }
-    };
-
+function updateTableFromCSV(csvData, constants) {
+    const CONSTANTS = constants;
+    
     // 要望に合わせて、行処理はsetIntervalで実行し、間隔はtimeintervalで管理
-    const timeinterval = 2000; // 行処理のインターバル(ms)
-    const editModeWaitMs = 300; // 編集モード待機
-    const typeIntervalMs = 200; // 文字入力のインターバル
-    const enterWaitMs = 200; // Enter確定の待機
+    const timeinterval = CONSTANTS.DELAYS.ROW_PROCESSING;
+    const editModeWaitMs = CONSTANTS.DELAYS.EDIT_MODE_WAIT;
+    const typeIntervalMs = CONSTANTS.DELAYS.TYPE_INTERVAL;
+    const enterWaitMs = CONSTANTS.DELAYS.ENTER_WAIT;
 
     try {
-        const updateMap = parseCSVData(csvData);
+        // CSVのマッピングをする
+        const headerKeys = Object.keys(CONSTANTS.HEADER_ID_MAP);
+        const updateMap = parseCSVData(csvData, headerKeys);
+
+        // テーブルを取得
         const table = findTable();
         if (!table) {
             console.error(CONSTANTS.MESSAGES.TABLE_NOT_FOUND);
             return;
         }
 
+        // ヘッダー情報を取得
         const headerInfo = getHeaderInfo(table);
         if (!headerInfo) {
             return;
         }
 
-        const targetRowIndexes = findTargetRows(table, headerInfo.issuerIndex, updateMap);
+        // 対象行を取得
+        const targetRowIndexes = findTargetRows(table, headerInfo.partnerName, updateMap);
+
+        // 行処理を実行（非同期で処理）
         processRowsWithInterval(targetRowIndexes, headerInfo, updateMap);
 
-        alert('テーブルを更新しました！');
+        alert(CONSTANTS.MESSAGES.UPDATE_COMPLETE);
     } catch (error) {
         console.error('テーブル更新中にエラーが発生しました:', error);
         alert(`エラーが発生しました: ${error.message}`);
     }
 
     // ---- ここから下は、この関数の中だけで使うヘルパー関数群 ----
-
-    function parseCSVData(csvData) {
-        const firstLine = csvData.trim().split('\n')[0];
+    /**
+     * CSVデータとヘッダー情報を基に、更新用のMapを生成する
+     * CSVの1行目をヘッダーとして扱い、HEADER_ID_MAPと突き合わせる
+     * @param {string} csvData - CSVデータ
+     * @param {string[]} headerKeys - HEADER_ID_MAPのキーの配列
+     * @returns {Map<string, object>} - 発行元をキー、更新データを値とするMap
+     */
+    function parseCSVData(csvData, headerKeys) {
+        const lines = csvData.trim().split('\n');
+        if (lines.length < 2) return new Map();
+    
+        const firstLine = lines[0];
         let delimiter = ',';
         if (firstLine.includes('\t')) delimiter = '\t';
-
-        const lines = csvData.trim().split('\n');
+    
+        const headers = firstLine.split(delimiter).map(h => h.trim());
         const updateMap = new Map();
+    
         for (let i = 1; i < lines.length; i++) {
-            const [issuer, account, note] = lines[i].split(delimiter);
-            if (issuer) {
-                updateMap.set(issuer.trim(), {
-                    account: account ? account.trim() : '',
-                    note: note ? note.trim() : ''
-                });
-            }
+            const values = lines[i].split(delimiter).map(v => v ? v.trim() : '');
+            if (!values[0]) continue; // 1列目（発行元）が空の場合はスキップ
+    
+            const rowData = {};
+            headers.forEach((header, index) => {
+                const headerId = CONSTANTS.HEADER_ID_MAP[header];
+                if (headerId && values[index]) {
+                    rowData[headerId] = values[index];
+                }
+            });
+            updateMap.set(values[0], rowData);
         }
         return updateMap;
     }
@@ -163,14 +149,24 @@ function updateTableFromCSV(csvData) {
             alert(CONSTANTS.MESSAGES.HEADER_ROW_NOT_FOUND);
             return null;
         }
-        const issuerIndex = getColumnIndexById(headerRow, '発行元');
-        const accountIndex = getColumnIndexById(headerRow, '勘定科目');
-        const noteIndex = getColumnIndexById(headerRow, '備考');
-        if (issuerIndex === -1 || accountIndex === -1 || noteIndex === -1) {
+        
+        const headerInfo = {};
+        for (const [columnName, headerId] of Object.entries(CONSTANTS.HEADER_ID_MAP)) {
+            //console.log(headerId);
+            const index = getColumnIndexById(headerRow, columnName);
+            if (index !== -1) {
+                //console.log(index);
+                headerInfo[headerId] = index;
+            }
+        }
+        
+        // 必須列の確認
+        if (!headerInfo.partnerName || !headerInfo.accountItem || !headerInfo.description) {
             alert(CONSTANTS.MESSAGES.COLUMNS_NOT_FOUND);
             return null;
         }
-        return { issuerIndex, accountIndex, noteIndex };
+        
+        return headerInfo;
     }
 
     function getColumnIndexById(headerRow, columnName) {
@@ -198,7 +194,13 @@ function updateTableFromCSV(csvData) {
 
     function processRowsWithInterval(targetRowIndexes, headerInfo, updateMap) {
         const rows = document.querySelectorAll('tr');
+        //一回目
         let currentIndex = 0;
+        const row = rows[targetRowIndexes[currentIndex]];
+        currentIndex++;
+        processSingleRow(row, headerInfo, updateMap);
+
+        //二回目以降
         const intervalId = setInterval(() => {
             if (currentIndex < targetRowIndexes.length) {
                 const row = rows[targetRowIndexes[currentIndex]];
@@ -211,40 +213,88 @@ function updateTableFromCSV(csvData) {
     }
 
     function processSingleRow(row, headerInfo, updateMap) {
-        const { issuerIndex, accountIndex, noteIndex } = headerInfo;
+        const issuerIndex = headerInfo.partnerName; // 発行元はpartnerName
         const issuerCell = row.querySelector(`td:nth-child(${issuerIndex})`);
-        const accountCell = row.querySelector(`td:nth-child(${accountIndex})`);
-        const noteSpan = row.querySelector(`td:nth-child(${noteIndex})`);
-        if (!issuerCell || !accountCell || !noteSpan) return;
+        if (!issuerCell) return;
 
         const currentIssuer = issuerCell.textContent.trim();
         if (!updateMap.has(currentIssuer)) return;
 
         const updateData = updateMap.get(currentIssuer);
-        updateNoteCell(noteSpan, updateData.note);
-        updateAccountCell(accountCell, updateData.account);
+        
+        
+        const tempindex = [];
+        const tempheader = [];
+        //Object.entries(headerInfo).forEach((headerId, columnIndex) => {
+        for (const [headerId, columnIndex] of Object.entries(headerInfo)) {
+            if (headerId in updateData) {
+                tempindex.push(columnIndex);
+                tempheader.push(headerId);
+            }
+        };
+        let currentIndex = 0;
+        const intervalId = setInterval(() => {
+        //for (const [headerId, columnIndex] of Object.entries(headerInfo)) {
+            if(currentIndex < tempindex.length){
+                const columnIndex = tempindex[currentIndex]
+                const headerId = tempheader[currentIndex];
+                //console.log(columnIndex);
+                //console.log(headerId);
+                currentIndex++;
+                if (headerId in updateData) {
+                    const cell = row.querySelector(`td:nth-child(${columnIndex})`);
+                    if (cell) {
+                        updateCell(cell, updateData[headerId], headerId);
+                    }
+                } else {
+                    return;
+                }
+            } else {
+                clearInterval(intervalId);
+            }
+        }, 800);
     }
-
-    function updateNoteCell(noteSpan, newNote) {
-        noteSpan.textContent = newNote;
-        noteSpan.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
-    }
-
-    function updateAccountCell(accountCell, newAccount) {
-        const activeInput = accountCell.querySelector('input[role="combobox"]');
-        const displayValueSpan = accountCell.querySelector('#tb-id_2__body__accountItem__0-0__cell__cellLabel span');
-        if (displayValueSpan && displayValueSpan.textContent === newAccount) return;
-
-        if (!activeInput) {
-            enterEditMode(accountCell);
+    
+    function updateCell(cell, newValue, headerId) {
+        // 発行元以外の全ての列をインタラクティブセルとして処理
+        if (headerId !== 'partnerName') {
+            updateInteractiveCell(cell, newValue, headerId);
         }
-        setTimeout(() => {
-            typeAccountValue(accountCell, newAccount);
-        }, editModeWaitMs);
     }
 
-    function enterEditMode(accountCell) {
-        const clickerButton = accountCell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
+    function updateTextCell(cell, newValue) {
+        cell.textContent = newValue;
+        cell.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
+    }
+
+    function updateInteractiveCell(cell, newValue, headerId) {
+        // 既に同じ値の場合はスキップ
+        const currentValue = cell.textContent.trim();
+        if (currentValue === newValue) return;
+
+        // 編集可能な入力要素を探す
+        const activeInput = cell.querySelector('input[role="combobox"]') || 
+                           cell.querySelector('input[type="text"]') || 
+                           cell.querySelector('input') ||
+                           cell.querySelector('textarea');
+        
+        // 編集ボタンを探す
+        const clickerButton = cell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
+        console.log("updateInteractiveCell");
+        console.log(newValue);
+        if (activeInput || clickerButton) {
+            // 既にアクティブな入力フィールドがない場合は編集モードに移行
+            if (!activeInput) {
+                enterEditMode(cell);
+            }
+            setTimeout(() => {
+                typeCellValue(cell, newValue, headerId);
+            }, editModeWaitMs);
+        }
+    }
+
+    function enterEditMode(cell) {
+        const clickerButton = cell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
         if (clickerButton) {
             const dblclickEvent = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
             clickerButton.dispatchEvent(dblclickEvent);
@@ -253,16 +303,28 @@ function updateTableFromCSV(csvData) {
         }
     }
 
-    function typeAccountValue(accountCell, newAccount) {
-        const finalInput = accountCell.querySelector('input[role="combobox"]');
+    function typeCellValue(cell, newValue, headerId) {
+        // 様々なタイプの入力要素を探す
+        const finalInput = cell.querySelector('input[role="combobox"]') || 
+                          cell.querySelector('input[type="text"]') || 
+                          cell.querySelector('input') ||
+                          cell.querySelector('textarea');
+        
         if (!finalInput) return;
+        
         finalInput.focus();
         finalInput.value = '';
         finalInput.dispatchEvent(new Event('input', { bubbles: true }));
+        
+        // 金額フィールドの場合は一括で値を設定し、changeイベントを発火させる
+        if (headerId === 'amount') {
+            newValue = newValue.toString();
+        }
         let charIndex = 0;
         const intervalId = setInterval(() => {
-            if (charIndex < newAccount.length) {
-                typeCharacter(finalInput, newAccount[charIndex]);
+            if (charIndex < newValue.length) {
+                //console.log(newValue[charIndex]);
+                typeCharacter(finalInput, newValue[charIndex]);
                 charIndex++;
             } else {
                 clearInterval(intervalId);
