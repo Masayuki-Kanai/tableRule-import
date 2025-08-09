@@ -118,7 +118,7 @@ function updateTableFromCSV(csvData) {
             return;
         }
 
-        const targetRowIndexes = findTargetRows(table, headerInfo['発行元'], updateMap);
+        const targetRowIndexes = findTargetRows(table, headerInfo.issuerIndex, updateMap);
         processRowsWithInterval(targetRowIndexes, headerInfo, updateMap);
 
         alert('テーブルを更新しました！');
@@ -136,23 +136,13 @@ function updateTableFromCSV(csvData) {
 
         const lines = csvData.trim().split('\n');
         const updateMap = new Map();
-        // ヘッダー行を解析して列の順序を取得
-        const headers = firstLine.split(delimiter).map(h => h.trim());
-        
         for (let i = 1; i < lines.length; i++) {
-            const values = lines[i].split(delimiter).map(v => v ? v.trim() : '');
-            if (values[0]) { // 発行元が存在する場合
-                const updateData = {};
-                headers.forEach((header, index) => {
-                    if (index < values.length) {
-                        // ヘッダー名を英語のプロパティ名に変換
-                        const propertyName = CONSTANTS.HEADER_ID_MAP[header];
-                        if (propertyName) {
-                            updateData[propertyName] = values[index];
-                        }
-                    }
+            const [issuer, account, note] = lines[i].split(delimiter);
+            if (issuer) {
+                updateMap.set(issuer.trim(), {
+                    account: account ? account.trim() : '',
+                    note: note ? note.trim() : ''
                 });
-                updateMap.set(values[0], updateData);
             }
         }
         return updateMap;
@@ -175,19 +165,14 @@ function updateTableFromCSV(csvData) {
             alert(CONSTANTS.MESSAGES.HEADER_ROW_NOT_FOUND);
             return null;
         }
-        // 全ての列のインデックスを取得
-        const headerIndices = {};
-        Object.keys(CONSTANTS.HEADER_ID_MAP).forEach(columnName => {
-            const index = getColumnIndexById(headerRow, columnName);
-            headerIndices[columnName] = index;
-        });
-        
-        if (headerIndices['発行元'] === -1) {
+        const issuerIndex = getColumnIndexById(headerRow, '発行元');
+        const accountIndex = getColumnIndexById(headerRow, '勘定科目');
+        const noteIndex = getColumnIndexById(headerRow, '備考');
+        if (issuerIndex === -1 || accountIndex === -1 || noteIndex === -1) {
             alert(CONSTANTS.MESSAGES.COLUMNS_NOT_FOUND);
             return null;
         }
-        
-        return headerIndices;
+        return { issuerIndex, accountIndex, noteIndex };
     }
 
     function getColumnIndexById(headerRow, columnName) {
@@ -228,106 +213,18 @@ function updateTableFromCSV(csvData) {
     }
 
     function processSingleRow(row, headerInfo, updateMap) {
-        const issuerIndex = headerInfo['発行元'];
+        const { issuerIndex, accountIndex, noteIndex } = headerInfo;
         const issuerCell = row.querySelector(`td:nth-child(${issuerIndex})`);
-        if (!issuerCell) return;
+        const accountCell = row.querySelector(`td:nth-child(${accountIndex})`);
+        const noteSpan = row.querySelector(`td:nth-child(${noteIndex})`);
+        if (!issuerCell || !accountCell || !noteSpan) return;
 
         const currentIssuer = issuerCell.textContent.trim();
         if (!updateMap.has(currentIssuer)) return;
 
         const updateData = updateMap.get(currentIssuer);
-        
-        // 更新対象の列を配列に格納（発行元以外）
-        const columnsToUpdate = [];
-        Object.keys(updateData).forEach(propertyName => {
-            // 英語プロパティ名から日本語列名を逆引き
-            const columnName = Object.keys(CONSTANTS.HEADER_ID_MAP).find(
-                key => CONSTANTS.HEADER_ID_MAP[key] === propertyName
-            );
-            
-            if (columnName && columnName !== '発行元' && headerInfo[columnName] !== -1) {
-                const cellIndex = headerInfo[columnName];
-                const cell = row.querySelector(`td:nth-child(${cellIndex})`);
-                if (cell && updateData[propertyName]) {
-                    columnsToUpdate.push({
-                        cell: cell,
-                        value: updateData[propertyName],
-                        columnName: columnName
-                    });
-                }
-            }
-        });
-        
-        // 列を順次処理（200ms間隔で処理して一行あたり約3秒以内）
-        processColumnsSequentially(columnsToUpdate, 0);
-    }
-
-    function processColumnsSequentially(columnsToUpdate, currentIndex) {
-        if (currentIndex >= columnsToUpdate.length) {
-            return; // 全ての列の処理が完了
-        }
-        
-        const columnData = columnsToUpdate[currentIndex];
-        updateCellWithSimulation(columnData.cell, columnData.value, columnData.columnName, () => {
-            // 次の列を処理（200ms間隔）
-            setTimeout(() => {
-                processColumnsSequentially(columnsToUpdate, currentIndex + 1);
-            }, 200);
-        });
-    }
-
-    function updateCellWithSimulation(cell, newValue, columnName, callback) {
-        // 編集可能なセルかチェック
-        const activeInput = cell.querySelector('input[role="combobox"]');
-        const clickerButton = cell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
-        
-        if (activeInput || clickerButton) {
-            // 編集可能なセル - ユーザー操作をシミュレート
-            if (!activeInput) {
-                enterEditMode(cell);
-            }
-            setTimeout(() => {
-                typeValueWithSimulation(cell, newValue, callback);
-            }, 100); // 編集モード待機時間を短縮
-        } else {
-            // 読み取り専用セル - 直接更新
-            cell.textContent = newValue;
-            cell.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
-            if (callback) callback();
-        }
-    }
-
-    function typeValueWithSimulation(cell, newValue, callback) {
-        const finalInput = cell.querySelector('input[role="combobox"]');
-        if (!finalInput) {
-            if (callback) callback();
-            return;
-        }
-        
-        finalInput.focus();
-        finalInput.value = '';
-        finalInput.dispatchEvent(new Event('input', { bubbles: true }));
-        
-        let charIndex = 0;
-        const intervalId = setInterval(() => {
-            if (charIndex < newValue.length) {
-                typeCharacter(finalInput, newValue[charIndex]);
-                charIndex++;
-            } else {
-                clearInterval(intervalId);
-                confirmInput(finalInput, callback);
-            }
-        }, 50); // 文字入力間隔を短縮（50ms）
-    }
-
-    function confirmInput(input, callback) {
-        setTimeout(() => {
-            const enterToConfirmEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
-            input.dispatchEvent(enterToConfirmEvent);
-            input.blur();
-            input.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
-            if (callback) callback();
-        }, 50); // Enter確定待機時間を短縮
+        updateNoteCell(noteSpan, updateData.note);
+        updateAccountCell(accountCell, updateData.account);
     }
 
     function updateNoteCell(noteSpan, newNote) {
