@@ -1,10 +1,10 @@
 // 定数定義
 const CONSTANTS = {
     DELAYS: {
-        EDIT_MODE_WAIT: 200,
+        EDIT_MODE_WAIT: 100,
         TYPE_INTERVAL: 100,
-        ENTER_WAIT: 500,
-        ROW_PROCESSING: 7000
+        ENTER_WAIT: 800,
+        SINGLE_ROW_PROCESSING: 1500
     },
     COLORS: {
         SUCCESS_BACKGROUND: '#f0fff0'
@@ -62,7 +62,7 @@ function updateTableFromCSV(csvData, constants) {
     const CONSTANTS = constants;
     
     // 要望に合わせて、行処理はsetIntervalで実行し、間隔はtimeintervalで管理
-    const timeinterval = CONSTANTS.DELAYS.ROW_PROCESSING;
+    const singletimeinterval = CONSTANTS.DELAYS.SINGLE_ROW_PROCESSING;
     const editModeWaitMs = CONSTANTS.DELAYS.EDIT_MODE_WAIT;
     const typeIntervalMs = CONSTANTS.DELAYS.TYPE_INTERVAL;
     const enterWaitMs = CONSTANTS.DELAYS.ENTER_WAIT;
@@ -71,6 +71,18 @@ function updateTableFromCSV(csvData, constants) {
         // CSVのマッピングをする
         const headerKeys = Object.keys(CONSTANTS.HEADER_ID_MAP);
         const updateMap = parseCSVData(csvData, headerKeys);
+        
+        //列数を数える
+        const lines = csvData.trim().split('\n');
+        if (lines.length < 2) return new Map();
+    
+        const firstLine = lines[0];
+        let delimiter = ',';
+        if (firstLine.includes('\t')) delimiter = '\t';
+    
+        //列情報
+        const headers = firstLine.split(delimiter).map(h => h.trim());
+        //console.log(Object.values(updateMap).length);
 
         // テーブルを取得
         const table = findTable();
@@ -91,7 +103,7 @@ function updateTableFromCSV(csvData, constants) {
         const targetRowIndexes = findTargetRows(table, headerInfo.partnerName, updateMap);
 
         // 行処理を実行（非同期で処理）
-        processRowsWithInterval(targetRowIndexes, headerInfo, updateMap);
+        processRowsWithInterval(targetRowIndexes, headerInfo, updateMap, headers.length);
 
         alert(CONSTANTS.MESSAGES.UPDATE_COMPLETE);
     } catch (error) {
@@ -180,8 +192,8 @@ function updateTableFromCSV(csvData, constants) {
             //console.log("getColumnIndexById");
             const id = headers[i].id;
             if (id && id.includes(targetIdPart)){
-                console.log("getColumnIndexById => ");
-                console.log(id);
+                //console.log("getColumnIndexById => ");
+                //console.log(id);
                 return i + 1;
             }
         }
@@ -200,7 +212,7 @@ function updateTableFromCSV(csvData, constants) {
         return targetRowIndexes;
     }
 
-    function processRowsWithInterval(targetRowIndexes, headerInfo, updateMap) {
+    function processRowsWithInterval(targetRowIndexes, headerInfo, updateMap, count_interval) {
         const rows = document.querySelectorAll('tr');
         //一回目
         let currentIndex = 0;
@@ -217,7 +229,11 @@ function updateTableFromCSV(csvData, constants) {
             } else {
                 clearInterval(intervalId);
             }
-        }, timeinterval);
+        }, singletimeinterval*(count_interval-1));
+        //console.log("singletimeinterval=>");
+        //console.log(Object.keys(headerInfo).length);
+        //console.log(singletimeinterval*(targetRowIndexes.length));
+        //console.log(singletimeinterval*(targetRowIndexes.length));
     }
 
     function processSingleRow(row, headerInfo, updateMap) {
