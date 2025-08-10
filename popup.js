@@ -69,8 +69,7 @@ function updateTableFromCSV(csvData, constants) {
 
     try {
         // CSVのマッピングをする
-        const headerKeys = Object.keys(CONSTANTS.HEADER_ID_MAP);
-        const updateMap = parseCSVData(csvData, headerKeys);
+        const updateMap = parseCSVData(csvData);
         
         //列数を数える
         const lines = csvData.trim().split('\n');
@@ -119,7 +118,7 @@ function updateTableFromCSV(csvData, constants) {
      * @param {string[]} headerKeys - HEADER_ID_MAPのキーの配列
      * @returns {Map<string, object>} - 発行元をキー、更新データを値とするMap
      */
-    function parseCSVData(csvData, headerKeys) {
+    function parseCSVData(csvData) {
         const lines = csvData.trim().split('\n');
         if (lines.length < 2) return new Map();
     
@@ -141,8 +140,6 @@ function updateTableFromCSV(csvData, constants) {
                     rowData[headerId] = values[index];
                 }
             });
-            //console.log("parseCSV => ");
-            //console.log(rowData);
             updateMap.set(values[0], rowData);
         }
         return updateMap;
@@ -170,7 +167,6 @@ function updateTableFromCSV(csvData, constants) {
         for (const [columnName, headerId] of Object.entries(CONSTANTS.HEADER_ID_MAP)) {
             const index = getColumnIndexById(headerRow, columnName);
             if (index !== -1) {
-                //console.log(index);
                 headerInfo[headerId] = index;
             }
         }
@@ -189,13 +185,8 @@ function updateTableFromCSV(csvData, constants) {
         const targetIdPart = CONSTANTS.HEADER_ID_MAP[columnName];
         if (!targetIdPart) return -1;
         for (let i = 0; i < headers.length; i++) {
-            //console.log("getColumnIndexById");
             const id = headers[i].id;
-            if (id && id.includes(targetIdPart)){
-                //console.log("getColumnIndexById => ");
-                //console.log(id);
-                return i + 1;
-            }
+            if (id && id.includes(targetIdPart)) return i + 1;
         }
         return -1;
     }
@@ -212,6 +203,7 @@ function updateTableFromCSV(csvData, constants) {
         return targetRowIndexes;
     }
 
+    // setIntervalを使って、行の処理を順番に実行する
     function processRowsWithInterval(targetRowIndexes, headerInfo, updateMap, count_interval) {
         const rows = document.querySelectorAll('tr');
         //一回目
@@ -230,14 +222,10 @@ function updateTableFromCSV(csvData, constants) {
                 clearInterval(intervalId);
             }
         }, singletimeinterval*(count_interval-1));
-        //console.log("singletimeinterval=>");
-        //console.log(Object.keys(headerInfo).length);
-        //console.log(singletimeinterval*(targetRowIndexes.length));
-        //console.log(singletimeinterval*(targetRowIndexes.length));
     }
 
     function processSingleRow(row, headerInfo, updateMap) {
-        const issuerIndex = headerInfo.partnerName; // 発行元はpartnerName
+        const issuerIndex = headerInfo.partnerName;
         const issuerCell = row.querySelector(`td:nth-child(${issuerIndex})`);
         if (!issuerCell) return;
 
@@ -246,7 +234,6 @@ function updateTableFromCSV(csvData, constants) {
 
         const updateData = updateMap.get(currentIssuer);
         
-        
         const tempindex = [];
         const tempheader = [];
         //Object.entries(headerInfo).forEach((headerId, columnIndex) => {
@@ -254,8 +241,6 @@ function updateTableFromCSV(csvData, constants) {
             if (headerId in updateData) {
                 tempindex.push(columnIndex);
                 tempheader.push(headerId);
-                //console.log(columnIndex);
-                //console.log(headerId);
             }
         };
         let currentIndex = 0;
@@ -287,31 +272,15 @@ function updateTableFromCSV(csvData, constants) {
         }
     }
 
-    function updateTextCell(cell, newValue) {
-        cell.textContent = newValue;
-        cell.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
-    }
-
     function updateInteractiveCell(cell, newValue, headerId) {
         // 既に同じ値の場合はスキップ
         const currentValue = cell.textContent.trim();
         if (currentValue === newValue) return;
-
-        // 編集可能な入力要素を探す
-        const activeInput = cell.querySelector('input[role="combobox"]') || 
-                           cell.querySelector('input[type="text"]') || 
-                           cell.querySelector('input') ||
-                           cell.querySelector('textarea');
         
         // 編集ボタンを探す
         const clickerButton = cell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
-        //console.log("headerId=>"+headerId.toString());
-        //console.log("newValue=>"+newValue.toString());
-        if (activeInput || clickerButton) {
-            // 既にアクティブな入力フィールドがない場合は編集モードに移行
-            if (!activeInput) {
-                enterEditMode(cell);
-            }
+        if (clickerButton) {
+            enterEditMode(cell);
             setTimeout(() => {
                 typeCellValue(cell, newValue, headerId);
             }, editModeWaitMs);
@@ -341,14 +310,10 @@ function updateTableFromCSV(csvData, constants) {
         finalInput.value = '';
         finalInput.dispatchEvent(new Event('input', { bubbles: true }));
         
-        // 金額フィールドの場合は一括で値を設定し、changeイベントを発火させる
-        if (headerId === 'amount') {
-            newValue = newValue.toString();
-        }
+        
         let charIndex = 0;
         const intervalId = setInterval(() => {
             if (charIndex < newValue.length) {
-                //console.log(newValue[charIndex]);
                 typeCharacter(finalInput, newValue[charIndex]);
                 charIndex++;
             } else {
@@ -361,9 +326,11 @@ function updateTableFromCSV(csvData, constants) {
     function typeCharacter(input, char) {
         const keydown = new KeyboardEvent('keydown', { key: char, bubbles: true });
         input.dispatchEvent(keydown);
+
         input.value += char;
         const inputEvent = new Event('input', { bubbles: true });
         input.dispatchEvent(inputEvent);
+        
         const keyup = new KeyboardEvent('keyup', { key: char, bubbles: true });
         input.dispatchEvent(keyup);
     }
