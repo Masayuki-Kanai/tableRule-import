@@ -3,23 +3,23 @@ const CONSTANTS = {
     DELAYS: {
         EDIT_MODE_WAIT: 200,
         TYPE_INTERVAL: 100,
-        ENTER_WAIT: 200,
-        ROW_PROCESSING: 5000
+        ENTER_WAIT: 500,
+        ROW_PROCESSING: 7000
     },
     COLORS: {
         SUCCESS_BACKGROUND: '#f0fff0'
     },
     HEADER_ID_MAP: {
         '発行元': 'partnerName',
-        '収支': 'incomeExpense',
-        '決済': 'payment',
-        '口座': 'account',
+        '収支': 'dealCode',
+        '決済': 'paymentStatus',
+        '口座': 'walletable',
         '勘定科目': 'accountItem',
-        '適格': 'qualified',
+        '適格': 'qualifiedInvoice',
         '税率': 'taxRate',
-        '取引先': 'tradingPartner',
-        '品目': 'item',
-        '部門': 'department',
+        '取引先': 'dealPartnerName',
+        '品目': 'tags',
+        '部門': 'section',
         '備考': 'description',
     },
     MESSAGES: {
@@ -81,6 +81,8 @@ function updateTableFromCSV(csvData, constants) {
 
         // ヘッダー情報を取得
         const headerInfo = getHeaderInfo(table);
+        //console.log("headerInfo => ");
+        //console.log(headerInfo);
         if (!headerInfo) {
             return;
         }
@@ -127,6 +129,8 @@ function updateTableFromCSV(csvData, constants) {
                     rowData[headerId] = values[index];
                 }
             });
+            //console.log("parseCSV => ");
+            //console.log(rowData);
             updateMap.set(values[0], rowData);
         }
         return updateMap;
@@ -152,7 +156,6 @@ function updateTableFromCSV(csvData, constants) {
         
         const headerInfo = {};
         for (const [columnName, headerId] of Object.entries(CONSTANTS.HEADER_ID_MAP)) {
-            //console.log(headerId);
             const index = getColumnIndexById(headerRow, columnName);
             if (index !== -1) {
                 //console.log(index);
@@ -174,8 +177,13 @@ function updateTableFromCSV(csvData, constants) {
         const targetIdPart = CONSTANTS.HEADER_ID_MAP[columnName];
         if (!targetIdPart) return -1;
         for (let i = 0; i < headers.length; i++) {
+            //console.log("getColumnIndexById");
             const id = headers[i].id;
-            if (id && id.includes(targetIdPart)) return i + 1;
+            if (id && id.includes(targetIdPart)){
+                console.log("getColumnIndexById => ");
+                console.log(id);
+                return i + 1;
+            }
         }
         return -1;
     }
@@ -230,6 +238,8 @@ function updateTableFromCSV(csvData, constants) {
             if (headerId in updateData) {
                 tempindex.push(columnIndex);
                 tempheader.push(headerId);
+                //console.log(columnIndex);
+                //console.log(headerId);
             }
         };
         let currentIndex = 0;
@@ -238,8 +248,7 @@ function updateTableFromCSV(csvData, constants) {
             if(currentIndex < tempindex.length){
                 const columnIndex = tempindex[currentIndex]
                 const headerId = tempheader[currentIndex];
-                //console.log(columnIndex);
-                //console.log(headerId);
+                
                 currentIndex++;
                 if (headerId in updateData) {
                     const cell = row.querySelector(`td:nth-child(${columnIndex})`);
@@ -252,7 +261,7 @@ function updateTableFromCSV(csvData, constants) {
             } else {
                 clearInterval(intervalId);
             }
-        }, 800);
+        }, 1000);
     }
     
     function updateCell(cell, newValue, headerId) {
@@ -280,8 +289,8 @@ function updateTableFromCSV(csvData, constants) {
         
         // 編集ボタンを探す
         const clickerButton = cell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
-        console.log("updateInteractiveCell");
-        console.log(newValue);
+        //console.log("headerId=>"+headerId.toString());
+        //console.log("newValue=>"+newValue.toString());
         if (activeInput || clickerButton) {
             // 既にアクティブな入力フィールドがない場合は編集モードに移行
             if (!activeInput) {
