@@ -196,8 +196,16 @@ function updateTableFromCSV(csvData, constants) {
         const targetRowIndexes = [];
         rows.forEach((row, index) => {
             const issuerCell = row.querySelector(`td:nth-child(${issuerIndex})`);
-            if (issuerCell && updateMap.has(issuerCell.textContent.trim())) {
-                targetRowIndexes.push(index);
+            if (issuerCell) {
+                const cellText = issuerCell.textContent.trim();
+                // 部分一致で判定
+                for (const key of updateMap.keys()) {
+                    if (cellText.includes(key)) {
+                        targetRowIndexes.push(index);
+                        console.log("key=>" + index);
+                        break;
+                    }
+                }
             }
         });
         return targetRowIndexes;
@@ -230,9 +238,16 @@ function updateTableFromCSV(csvData, constants) {
         if (!issuerCell) return;
 
         const currentIssuer = issuerCell.textContent.trim();
-        if (!updateMap.has(currentIssuer)) return;
-
-        const updateData = updateMap.get(currentIssuer);
+        
+        // 部分一致でupdateMapから該当データを取得
+        let updateData = null;
+        for (const key of updateMap.keys()) {
+            if (currentIssuer.includes(key)) {
+                updateData = updateMap.get(key);
+                break;
+            }
+        }
+        if (!updateData) return;
         
         const tempindex = [];
         const tempheader = [];
