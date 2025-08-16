@@ -1,10 +1,10 @@
 // 定数定義
 const CONSTANTS = {
     DELAYS: {
-        EDIT_MODE_WAIT: 100,
+        EDIT_MODE_WAIT: 200,
         TYPE_INTERVAL: 100,
         ENTER_WAIT: 800,
-        SINGLE_ROW_PROCESSING: 1500
+        SINGLE_ROW_PROCESSING: 1600
     },
     COLORS: {
         SUCCESS_BACKGROUND: '#f0fff0'
@@ -306,6 +306,7 @@ function updateTableFromCSV(csvData, constants) {
         const clickerButton = cell.querySelector('button[aria-label="ダブルクリックでセルを編集"]');
         if (clickerButton) {
             const dblclickEvent = new MouseEvent('dblclick', { bubbles: true, cancelable: true });
+            clickerButton.focus();
             clickerButton.dispatchEvent(dblclickEvent);
         } else {
             console.error(CONSTANTS.MESSAGES.EDIT_BUTTON_NOT_FOUND);
