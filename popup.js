@@ -356,7 +356,12 @@ function updateTableFromCSV(csvData, constants) {
             const enterToConfirmEvent = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true });
             input.dispatchEvent(enterToConfirmEvent);
             input.blur();
-            input.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
+            // inputの親(td)に背景色を設定
+            const cell = input.closest('td');
+            if (cell) {
+                cell.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
+            }
+            //input.style.backgroundColor = CONSTANTS.COLORS.SUCCESS_BACKGROUND;
         }, enterWaitMs);
     }
 }
